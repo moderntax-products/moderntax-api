@@ -1,0 +1,128 @@
+{
+  "sandbox_request": {
+    "endpoint": "https://moderntax-api-live.vercel.app/api/verify",
+    "method": "POST",
+    "headers": {
+      "X-API-Key": "mt_sandbox_conductiv_2025_test",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "borrower": {
+        "ssn": "000-00-0001",
+        "first_name": "John",
+        "last_name": "Smith",
+        "email": "john@example.com",
+        "dob": "1985-06-15"
+      },
+      "form_8821_data": {
+        "taxpayer_name": "John Michael Smith",
+        "taxpayer_ssn": "000-00-0001",
+        "taxpayer_address": "123 Main St, San Francisco, CA 94105",
+        "taxpayer_phone": "415-555-1234",
+        "taxpayer_dob": "1985-06-15",
+        "end_user_email": "john@example.com",
+        "tax_forms": ["1040", "W-2", "1099"],
+        "tax_years": ["2023", "2022"],
+        "taxpayer_signature": "John Michael Smith",
+        "consent_timestamp": "2024-09-19T10:30:00Z"
+      },
+      "platform_metadata": {
+        "source": "conductiv",
+        "client": "Test Bank",
+        "loan_id": "LOAN-001",
+        "webhook_url": "https://webhook.site/YOUR-UNIQUE-ID"
+      }
+    }
+  },
+  "production_request": {
+    "endpoint": "https://moderntax-api-live.vercel.app/api/verify",
+    "method": "POST",
+    "headers": {
+      "X-API-Key": "mt_prod_conductiv_2025_3c651d11d29e",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "borrower": {
+        "ssn": "ACTUAL-SSN-HERE",
+        "first_name": "Actual",
+        "last_name": "Borrower",
+        "email": "borrower@example.com",
+        "dob": "1980-01-01"
+      },
+      "form_8821_data": {
+        "taxpayer_name": "Full Legal Name",
+        "taxpayer_ssn": "ACTUAL-SSN-HERE",
+        "taxpayer_address": "Actual Street Address, City, State ZIP",
+        "taxpayer_phone": "Actual Phone Number",
+        "taxpayer_dob": "1980-01-01",
+        "end_user_email": "borrower@example.com",
+        "tax_forms": ["1040", "W-2"],
+        "tax_years": ["2023", "2022"],
+        "taxpayer_signature": "Electronic Signature",
+        "consent_timestamp": "2024-09-19T10:30:00Z"
+      },
+      "platform_metadata": {
+        "source": "conductiv",
+        "client": "Production Bank Name",
+        "loan_id": "PRODUCTION-LOAN-ID",
+        "webhook_url": "https://api.conductiv.co/webhooks/moderntax"
+      }
+    }
+  },
+  "test_ssns": {
+    "000-00-0001": "High income - $148,506 AGI",
+    "000-00-0002": "Low income - $25,000 AGI",
+    "000-00-0003": "No records found"
+  },
+  "field_descriptions": {
+    "borrower": {
+      "ssn": "Social Security Number in XXX-XX-XXXX format",
+      "first_name": "Borrower's first name",
+      "last_name": "Borrower's last name",
+      "email": "Borrower's email address",
+      "dob": "Date of birth in YYYY-MM-DD format"
+    },
+    "form_8821_data": {
+      "taxpayer_name": "Full legal name as it appears on tax returns",
+      "taxpayer_ssn": "Must match borrower.ssn",
+      "taxpayer_address": "Complete mailing address",
+      "taxpayer_phone": "Contact phone number",
+      "taxpayer_dob": "Date of birth (must match borrower.dob)",
+      "end_user_email": "Email for notifications",
+      "tax_forms": "Array of form types to retrieve (e.g., ['1040', 'W-2', '1099'])",
+      "tax_years": "Array of years to retrieve (e.g., ['2023', '2022'])",
+      "taxpayer_signature": "Electronic signature (full name)",
+      "consent_timestamp": "ISO 8601 timestamp of consent"
+    },
+    "platform_metadata": {
+      "source": "Always 'conductiv' for your integration",
+      "client": "Name of the lending institution",
+      "loan_id": "Your internal loan identifier",
+      "webhook_url": "URL to receive async results (production SSNs)"
+    }
+  },
+  "response_format": {
+    "request_id": "Unique identifier for this request",
+    "status": "completed | processing | no_records",
+    "test_mode": "Boolean - true for test SSNs",
+    "taxpayer_info": {
+      "name": "Reflects the taxpayer_name you provide",
+      "ssn_last_four": "Last 4 digits of SSN",
+      "tax_years_requested": "Years you requested",
+      "tax_forms_requested": "Forms you requested"
+    },
+    "income_verification": {
+      "tax_year_2023": {
+        "adjusted_gross_income": "Number",
+        "wages_salaries": "Number",
+        "filing_status": "String"
+      }
+    },
+    "documents": {
+      "transcript_pdf": "URL to PDF transcript",
+      "transcript_json": "URL to JSON data",
+      "transcript_xml": "URL to XML format",
+      "transcript_txt": "URL to text format"
+    }
+  }
+}

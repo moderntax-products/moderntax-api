@@ -1,0 +1,23 @@
+ModernTax API - Ready for Conductiv
+
+LIVE ENDPOINT:
+https://moderntax-api-live.vercel.app/api/verify
+
+YOUR API KEY:
+mt_prod_conductiv_2025_3c651d11d29e
+
+TEST COMMAND:
+curl -X POST https://moderntax-api-live.vercel.app/api/verify \
+  -H "X-API-Key: mt_prod_conductiv_2025_3c651d11d29e" \
+  -H "Content-Type: application/json" \
+  -d "{\"borrower\": {\"ssn\": \"000-00-0001\"}}"
+
+TEST SSNs:
+000-00-0001 = High income
+000-00-0002 = Low income  
+000-00-0003 = No records
+
+PRODUCTION:
+Real SSNs = $45 per verification
+
+Start testing now!

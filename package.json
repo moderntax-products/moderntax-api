@@ -1,0 +1,16 @@
+{
+  "name": "moderntax-api",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^138.0.2",
+    "jspdf": "^3.0.3",
+    "next": "latest",
+    "puppeteer-core": "^24.22.3",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}
