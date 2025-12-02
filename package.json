@@ -7,11 +7,19 @@
   },
   "dependencies": {
     "@sparticuz/chromium": "^138.0.2",
-    "@supabase/supabase-js": "^2.58.0",
+    "@supabase/supabase-js": "^2.86.0",
+    "csv-parse": "^6.1.0",
+    "formidable": "^3.5.4",
     "jspdf": "^3.0.3",
     "next": "latest",
+    "nodemailer": "^7.0.10",
     "puppeteer-core": "^24.22.3",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.6",
+    "typescript": "^5.9.3"
   }
 }
