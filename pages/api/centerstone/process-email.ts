@@ -1,18 +1,36 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { parseCSVText } from '../../../lib/csv-parser';
 import { v4 as uuidv4 } from 'uuid';
 
 const supabase = createClient(
-  'https://nixzwnfjglojemozlvmf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peHp3bmZqZ2xvamVtb3psdm1mIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Nzk2MzMzMywiZXhwIjoyMDczNTM5MzMzfQ.qe36GBNEHc1scnOTo5UY1b_V5CdW0sPcLjwx9aqIDGo'
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
 );
 
 const SLACK_WEBHOOK = process.env.SLACK_WEBHOOK_URL || '';
 
+// Inline CSV parsing
+function parseCSVText(csvText: string): any[] {
+  const lines = csvText.trim().split('\n');
+  if (lines.length < 2) return [];
+  
+  const headers = lines[0].split(',').map(h => h.trim());
+  const rows: any[] = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim());
+    const row: any = {};
+    headers.forEach((header, idx) => {
+      row[header] = values[idx] || '';
+    });
+    rows.push(row);
+  }
+  
+  return rows;
+}
+
 async function notifySlack(message: string, isError: boolean = false) {
   if (!SLACK_WEBHOOK) return;
-  
   try {
     await fetch(SLACK_WEBHOOK, {
       method: 'POST',
@@ -172,7 +190,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
-        // Success!
         const successMessage = `✅ CSV imported from ${from.split('@')[0]}: ${dbRecords.length} records (${rows.length - dbRecords.length} filtered)`;
         await notifySlack(successMessage);
         
