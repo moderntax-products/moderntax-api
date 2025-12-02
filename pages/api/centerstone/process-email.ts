@@ -149,19 +149,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         let csvText = '';
 
-        // Handle if attachment_data is a URL (from Zapier)
-        if (attachment_data.startsWith('http')) {
-          const response = await fetch(attachment_data);
-          csvText = await response.text();
-        }
-        // Handle if it's base64
-        else if (attachment_data.includes(',')) {
-          const base64String = attachment_data.split(',')[1];
-          csvText = Buffer.from(base64String, 'base64').toString('utf-8');
-        }
-        // Handle if it's already base64
-        else {
-          csvText = Buffer.from(attachment_data, 'base64').toString('utf-8');
+        // Handle raw CSV text (from Zapier)
+        if (typeof attachment_data === 'string') {
+          // Handle if it's a URL
+          if (attachment_data.startsWith('http')) {
+            const response = await fetch(attachment_data);
+            csvText = await response.text();
+          }
+          // Handle if it's base64 with data prefix
+          else if (attachment_data.includes(',')) {
+            const base64String = attachment_data.split(',')[1];
+            csvText = Buffer.from(base64String, 'base64').toString('utf-8');
+          }
+          // Handle if it's plain base64
+          else if (attachment_data.length > 100 && !attachment_data.includes('\n')) {
+            try {
+              csvText = Buffer.from(attachment_data, 'base64').toString('utf-8');
+            } catch (e) {
+              // If base64 decode fails, treat as raw CSV
+              csvText = attachment_data;
+            }
+          }
+          // Otherwise treat as raw CSV text
+          else {
+            csvText = attachment_data;
+          }
         }
         
         const rows = parseCSVText(csvText);
@@ -179,13 +191,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (dbRecords.length === 0) {
           const error = `No valid records found. ${rows.length} rows total, all incomplete`;
-          await logError(new Error(error), { from, message_id, total_rows: rows.length, first_row: rows[0] });
+          await logError(new Error(error), { from, message_id, total_rows: rows.length });
           await notifySlack(`⚠️ CSV from ${from}: ${rows.length} rows but none valid`, true);
           return res.status(400).json({ 
             error,
             upload_id: message_id,
-            total_rows: rows.length,
-            first_row_keys: rows[0] ? Object.keys(rows[0]) : []
+            total_rows: rows.length
           });
         }
 
