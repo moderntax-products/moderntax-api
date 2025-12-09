@@ -1,0 +1,4 @@
+legal_name,TIN,street_address,city,state,zip_code,signer_first_name,signer_last_name,signer_email,tax_year,tax_forms,loan_id
+Abbaee Soondae LLC,12-3456789,8500 Wilshire Blvd,Los Angeles,CA,90211,Abbaee,Soondae,abbaee@example.com,2022,1120,17936
+Bu Hwang Inc,23-4567890,9600 Sunset Blvd,Los Angeles,CA,90210,Bu,Hwang,bu@example.com,2022,1065,17937
+Hyung Shin Trust,34-5678901,10000 Constellation Blvd,Los Angeles,CA,90067,Hyung,Shin,hyung@example.com,2022,1120,17938

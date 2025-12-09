@@ -1,249 +1,240 @@
+// pages/api/forms/[...params].js
+// This handles all form endpoints and returns proper PDFs
+
+import { jsPDF } from 'jspdf';
+
 export default async function handler(req, res) {
   const { params } = req.query;
   
-  if (!params || params.length < 3) {
-    return res.status(400).json({ error: 'Invalid URL format' });
+if (!params || params.length < 3) {
+    return res.status(404).json({ error: 'Invalid form URL format' });
   }
   
-  const [formType, year, filename] = params;
+  const [formType, taxYear, requestIdWithExt] = params;
+  const requestId = requestIdWithExt.replace('.pdf', '').replace('.html', '');
+  const isPDF = requestIdWithExt.endsWith('.pdf');
   
-  // For now, return a simple HTML representation that browsers will display as PDF-like
-  let htmlContent = '';
+  // Generate form content based on type
+  let formContent = '';
+  let formTitle = '';
   
-  if (formType === '1040') {
-    htmlContent = generate1040HTML(year);
-  } else if (formType === 'W2' || formType === 'W-2') {
-    htmlContent = generateW2HTML(year, filename);
-  } else if (formType === '1098') {
-    htmlContent = generate1098HTML(year);
-  } else if (formType === '1099DIV') {
-    htmlContent = generate1099HTML(year);
+  switch(formType.toUpperCase()) {
+    case '1040':
+      formTitle = `Form 1040 - U.S. Individual Income Tax Return (${taxYear})`;
+      formContent = generate1040Content(requestId, taxYear);
+      break;
+    case 'W2':
+    case 'W-2':
+      formTitle = `Form W-2 - Wage and Tax Statement (${taxYear})`;
+      formContent = generateW2Content(requestId, taxYear);
+      break;
+    case '1099':
+      formTitle = `Form 1099 - Miscellaneous Income (${taxYear})`;
+      formContent = generate1099Content(requestId, taxYear);
+      break;
+    case '1098':
+      formTitle = `Form 1098 - Mortgage Interest Statement (${taxYear})`;
+      formContent = generate1098Content(requestId, taxYear);
+      break;
+    default:
+      return res.status(404).json({ error: 'Unknown form type' });
+  }
+  
+  // Return PDF or HTML based on extension
+  if (isPDF) {
+    // Generate actual PDF
+    const doc = new jsPDF();
+    
+    // Add header
+    doc.setFontSize(16);
+    doc.text(formTitle, 20, 20);
+    doc.setFontSize(11);
+    doc.text(`Request ID: ${requestId}`, 20, 30);
+    
+    // Add form content
+    const lines = formContent.split('\n');
+    let yPosition = 45;
+    
+    lines.forEach(line => {
+      if (yPosition > 270) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.text(line, 20, yPosition);
+      yPosition += 7;
+    });
+    
+    // Add footer
+    doc.setFontSize(8);
+    doc.text('This is a test document for ModernTax API sandbox mode', 20, 280);
+    doc.text(`Generated: ${new Date().toISOString()}`, 20, 285);
+    
+    // Return as PDF
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${formType}_${taxYear}_${requestId}.pdf"`);
+    return res.send(pdfBuffer);
+    
   } else {
-    return res.status(404).json({ error: 'Form type not found' });
+    // Return HTML version
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>${formTitle}</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+    .section { margin: 20px 0; }
+    .row { display: flex; justify-content: space-between; margin: 5px 0; }
+    .label { font-weight: bold; }
+    .value { text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${formTitle}</h1>
+    <p>Request ID: ${requestId}</p>
+  </div>
+  <pre>${formContent}</pre>
+  <div style="margin-top: 50px; font-size: 10px; color: #666;">
+    <p>This is a test document for ModernTax API sandbox mode</p>
+    <p>Generated: ${new Date().toISOString()}</p>
+  </div>
+</body>
+</html>`;
+    
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(html);
   }
-  
-  // Return HTML that looks like an IRS form
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  return res.send(htmlContent);
 }
 
-function generate1040HTML(year) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-<title>Form 1040 - ${year}</title>
-<style>
-body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
-.header { background: #f0f0f0; padding: 10px; text-align: center; font-weight: bold; }
-.section { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
-.row { display: flex; justify-content: space-between; margin: 5px 0; }
-.label { font-weight: bold; }
-.value { text-align: right; }
-</style>
-</head>
-<body>
-<div class="header">Department of the Treasury - Internal Revenue Service<br/>
-Form 1040 - U.S. Individual Income Tax Return (${year})</div>
+function generate1040Content(requestId, taxYear) {
+  return `
+FORM 1040 - INDIVIDUAL INCOME TAX RETURN
+Tax Year: ${taxYear}
 
-<div class="section">
-<h3>Filing Status</h3>
-<div class="row"><span>✓ Married Filing Joint</span></div>
-</div>
+Filing Status: Married Filing Joint
+----------------------------------------
 
-<div class="section">
-<h3>Income</h3>
-<div class="row"><span class="label">1. Wages, salaries, tips</span><span class="value">$105,248</span></div>
-<div class="row"><span class="label">2. Interest</span><span class="value">$0</span></div>
-<div class="row"><span class="label">3. Dividends</span><span class="value">$0</span></div>
-<div class="row"><span class="label">4. Business income</span><span class="value">$46,547</span></div>
-<div class="row"><span class="label">11. Adjusted Gross Income</span><span class="value">$148,506</span></div>
-</div>
+INCOME:
+1. Wages, salaries, tips               $105,248
+2. Interest income                     $1,234
+3. Dividend income                     $2,456
+4. Business income                     $35,000
+5. Capital gains                       $4,568
 
-<div class="section">
-<h3>Tax and Credits</h3>
-<div class="row"><span class="label">12. Standard deduction</span><span class="value">$27,700</span></div>
-<div class="row"><span class="label">15. Taxable income</span><span class="value">$112,154</span></div>
-<div class="row"><span class="label">16. Tax</span><span class="value">$21,866</span></div>
-</div>
+ADJUSTED GROSS INCOME (AGI):           $148,506
 
-<div class="section">
-<h3>Payments</h3>
-<div class="row"><span class="label">25. Federal tax withheld</span><span class="value">$12,512</span></div>
-<div class="row"><span class="label">37. Amount you owe</span><span class="value">$9,354</span></div>
-</div>
+DEDUCTIONS:
+Standard deduction                     $27,700
+Taxable income                        $120,806
 
-<div class="section">
-<p>Taxpayer Signature: _________________ Date: _________</p>
-<p>Spouse Signature: ___________________ Date: _________</p>
-</div>
-</body>
-</html>`;
+TAX CALCULATION:
+Tax on taxable income                  $21,543
+Credits                                ($2,000)
+Total tax                              $19,543
+
+PAYMENTS:
+Federal income tax withheld            $22,000
+Estimated tax payments                 $0
+
+REFUND:                                $2,457
+
+Taxpayer Signature: /s/ Electronic Signature
+Date: ${new Date().toLocaleDateString()}
+`;
 }
 
-function generateW2HTML(year, filename) {
-  const employerNum = filename.includes('_1') ? 1 : filename.includes('_2') ? 2 : 3;
-  const employers = {
-    1: { name: 'DILL CORPORATION', ein: 'XX-XXX8071', wages: 473, fed: 18, ss: 29, med: 6 },
-    2: { name: 'SHAN ENTERPRISES', ein: 'XX-XXX9845', wages: 1303, fed: 46, ss: 80, med: 18 },
-    3: { name: 'JAAC INDUSTRIES', ein: 'XX-XXX7408', wages: 16847, fed: 1494, ss: 1044, med: 244 }
-  };
-  const emp = employers[employerNum];
-  
-  return `<!DOCTYPE html>
-<html>
-<head>
-<title>Form W-2 - ${year}</title>
-<style>
-body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
-.header { background: #f0f0f0; padding: 10px; text-align: center; font-weight: bold; }
-.box { border: 1px solid #000; padding: 5px; margin: 5px 0; min-height: 40px; }
-.row { display: flex; gap: 10px; }
-.box-label { font-size: 10px; font-weight: bold; }
-.box-value { font-size: 14px; margin-top: 5px; }
-</style>
-</head>
-<body>
-<div class="header">Form W-2 Wage and Tax Statement ${year}</div>
+function generateW2Content(requestId, taxYear) {
+  return `
+FORM W-2 - WAGE AND TAX STATEMENT
+Tax Year: ${taxYear}
 
-<div class="row">
-<div class="box" style="flex: 1;">
-<div class="box-label">a. Employee's SSN</div>
-<div class="box-value">XXX-XX-9616</div>
-</div>
-</div>
+EMPLOYER INFORMATION:
+DILL CORPORATION
+123 Corporate Blvd
+San Francisco, CA 94105
+EIN: 12-3456789
 
-<div class="row">
-<div class="box" style="flex: 1;">
-<div class="box-label">b. Employer identification number (EIN)</div>
-<div class="box-value">${emp.ein}</div>
-</div>
-</div>
+EMPLOYEE INFORMATION:
+Request ID: ${requestId}
+SSN: ***-**-****
 
-<div class="row">
-<div class="box" style="flex: 1;">
-<div class="box-label">c. Employer's name, address, and ZIP code</div>
-<div class="box-value">${emp.name}<br/>123 Business Ave<br/>City, ST 12345</div>
-</div>
-</div>
+WAGE AND TAX INFORMATION:
+----------------------------------------
+Box 1: Wages, tips, other comp        $105,248.00
+Box 2: Federal income tax withheld    $22,000.00
+Box 3: Social security wages          $105,248.00
+Box 4: Social security tax withheld   $6,525.38
+Box 5: Medicare wages                 $105,248.00
+Box 6: Medicare tax withheld          $1,526.10
+Box 12a: Code D - 401(k)              $19,500.00
+Box 14: State income tax withheld     $8,420.00
 
-<div class="row">
-<div class="box" style="flex: 1;">
-<div class="box-label">e. Employee's name</div>
-<div class="box-value">PRIS D LUN</div>
-</div>
-</div>
-
-<div class="row">
-<div class="box" style="width: 150px;">
-<div class="box-label">1. Wages, tips, other comp.</div>
-<div class="box-value">$${emp.wages.toLocaleString()}.00</div>
-</div>
-<div class="box" style="width: 150px;">
-<div class="box-label">2. Federal income tax withheld</div>
-<div class="box-value">$${emp.fed.toLocaleString()}.00</div>
-</div>
-</div>
-
-<div class="row">
-<div class="box" style="width: 150px;">
-<div class="box-label">3. Social security wages</div>
-<div class="box-value">$${emp.wages.toLocaleString()}.00</div>
-</div>
-<div class="box" style="width: 150px;">
-<div class="box-label">4. Social security tax withheld</div>
-<div class="box-value">$${emp.ss.toLocaleString()}.00</div>
-</div>
-</div>
-
-<div class="row">
-<div class="box" style="width: 150px;">
-<div class="box-label">5. Medicare wages and tips</div>
-<div class="box-value">$${emp.wages.toLocaleString()}.00</div>
-</div>
-<div class="box" style="width: 150px;">
-<div class="box-label">6. Medicare tax withheld</div>
-<div class="box-value">$${emp.med.toLocaleString()}.00</div>
-</div>
-</div>
-</body>
-</html>`;
+STATE INFORMATION:
+State: CA
+State wages: $105,248.00
+State income tax: $8,420.00
+`;
 }
 
-function generate1098HTML(year) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-<title>Form 1098 - ${year}</title>
-<style>
-body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
-.header { background: #f0f0f0; padding: 10px; text-align: center; font-weight: bold; }
-.box { border: 1px solid #000; padding: 10px; margin: 10px 0; }
-.label { font-weight: bold; font-size: 12px; }
-.value { font-size: 16px; margin-top: 5px; }
-</style>
-</head>
-<body>
-<div class="header">Form 1098 Mortgage Interest Statement ${year}</div>
+function generate1099Content(requestId, taxYear) {
+  return `
+FORM 1099-MISC - MISCELLANEOUS INCOME
+Tax Year: ${taxYear}
 
-<div class="box">
-<div class="label">RECIPIENT/LENDER</div>
-<div class="value">DOVE MORTGAGE<br/>Recipient TIN: XX-XXX5132</div>
-</div>
+PAYER INFORMATION:
+INVESTMENT COMPANY LLC
+456 Investment Ave
+New York, NY 10001
+EIN: 98-7654321
 
-<div class="box">
-<div class="label">PAYER/BORROWER</div>
-<div class="value">PRIS D LUN<br/>Payer SSN: XXX-XX-9616</div>
-</div>
+RECIPIENT INFORMATION:
+Request ID: ${requestId}
+SSN: ***-**-****
 
-<div class="box">
-<div class="label">Box 1: Mortgage interest received from payer/borrower</div>
-<div class="value">$6,019.00</div>
-</div>
+INCOME INFORMATION:
+----------------------------------------
+Box 1: Rents                          $0.00
+Box 2: Royalties                      $0.00
+Box 3: Other income                   $4,568.00
+Box 4: Federal tax withheld           $0.00
+Box 5: Fishing boat proceeds          $0.00
+Box 6: Medical payments                $0.00
+Box 7: Nonemployee compensation        $35,000.00
 
-<div class="box">
-<div class="label">Box 2: Outstanding mortgage principal</div>
-<div class="value">$152,010.00</div>
-</div>
-
-<div class="box">
-<div class="label">Property Address</div>
-<div class="value">11633 Property Lane, City, ST 12345</div>
-</div>
-</body>
-</html>`;
+Total reported: $39,568.00
+`;
 }
 
-function generate1099HTML(year) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-<title>Form 1099-DIV - ${year}</title>
-<style>
-body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
-.header { background: #f0f0f0; padding: 10px; text-align: center; font-weight: bold; }
-.box { border: 1px solid #000; padding: 10px; margin: 10px 0; }
-</style>
-</head>
-<body>
-<div class="header">Form 1099-DIV Dividends and Distributions ${year}</div>
+function generate1098Content(requestId, taxYear) {
+  return `
+FORM 1098 - MORTGAGE INTEREST STATEMENT
+Tax Year: ${taxYear}
 
-<div class="box">
-<strong>PAYER:</strong> ROBI INVESTMENTS<br/>
-Payer TIN: XX-XXX4776
-</div>
+LENDER INFORMATION:
+FIRST NATIONAL BANK
+789 Banking Center
+San Francisco, CA 94105
+EIN: 11-2233445
 
-<div class="box">
-<strong>RECIPIENT:</strong> PRIS D LUN<br/>
-Recipient SSN: XXX-XX-9616
-</div>
+BORROWER INFORMATION:
+Request ID: ${requestId}
+SSN: ***-**-****
 
-<div class="box">
-<strong>Box 1a:</strong> Total ordinary dividends: $0.00
-</div>
+MORTGAGE INFORMATION:
+----------------------------------------
+Box 1: Mortgage interest              $18,543.00
+Box 2: Points paid                    $0.00
+Box 3: Refund of overpaid interest    $0.00
+Box 4: Mortgage insurance premiums    $1,200.00
+Box 5: Property taxes                 $4,800.00
 
-<div class="box">
-<strong>Box 1b:</strong> Qualified dividends: $0.00
-</div>
-</body>
-</html>`;
+Property Address:
+123 Main Street
+San Francisco, CA 94105
+
+Loan Number: 1234567890
+`;
 }

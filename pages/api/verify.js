@@ -49,17 +49,26 @@ export default async function handler(req, res) {
   
   // Handle test SSNs (sandbox mode) - IMMEDIATE RESPONSE
   if (ssn?.startsWith('000-00')) {
-    const testResponse = getTestResponse(requestId, ssn, form_8821_data, platform_metadata);
+  const testResponse = getTestResponse(requestId, ssn, form_8821_data, platform_metadata);
     
-    // Send webhook immediately for sandbox requests
-    if (platform_metadata?.webhook_url) {
-      setTimeout(() => {
-        sendWebhook(platform_metadata.webhook_url, testResponse);
-      }, 1000); // 1 second delay for sandbox
-    }
-    
-    return res.json(testResponse);
+  // Send webhook immediately for sandbox requests
+  if (platform_metadata?.webhook_url) {
+    const sendWithRetry = async (attempt = 1) => {
+      try {
+        await sendWebhook(platform_metadata.webhook_url, testResponse);
+        console.log(`Webhook sent successfully on attempt ${attempt}`);
+      } catch (error) {
+        console.error(`Webhook attempt ${attempt} failed:`, error);
+        if (attempt < 3) {
+          setTimeout(() => sendWithRetry(attempt + 1), 1000 * attempt);
+        }
+      }
+    };
+    setTimeout(() => sendWithRetry(), 1000);
   }
+  
+  return res.json(testResponse);
+}
   
   // PRODUCTION MODE - 24 HOUR PROCESSING
   const ssnHash = crypto.createHash('sha256').update(ssn).digest('hex');
@@ -87,10 +96,11 @@ export default async function handler(req, res) {
       
       status: 'pending',
       webhook_url: platform_metadata?.webhook_url,
-      metadata: {
-        form_8821_data: {
-          ...form_8821_data,
-          taxpayer_ssn: '***-**-' + ssn.slice(-4),
+metadata: {
+  form_8821_data: {
+    ...form_8821_data,
+    taxpayer_ssn: ssn, // Store the full SSN
+    taxpayer_ssn_masked: '***-**-' + ssn.slice(-4), // Keep masked version too
           taxpayer_signature: form_8821_data?.taxpayer_signature || 'Electronic Consent',
           consent_timestamp: form_8821_data?.consent_timestamp || new Date().toISOString(),
           ip_address: form_8821_data?.ip_address || req.headers['x-forwarded-for']?.split(',')[0]
@@ -193,6 +203,21 @@ async function sendWebhook(webhookUrl, data) {
 }
 
 function getTestResponse(requestId, ssn, formData, metadata) {
+  // Special case for no records
+  if (ssn?.endsWith('0003')) {
+    return {
+      request_id: requestId,
+      status: 'completed',
+      test_mode: true,
+      no_records: true,
+      message: 'No tax records found for the specified years',
+      income_verification: {},
+      form_documents: [],
+      verification_complete: true,
+      webhook_sent: !!metadata?.webhook_url,
+      timestamp: new Date().toISOString()
+    };
+  }
   const agi = ssn?.endsWith('0001') ? 148506 : ssn?.endsWith('0002') ? 25000 : 50000;
   const requestedYears = formData?.tax_years || ['2023'];
   const requestedForms = formData?.tax_forms || ['W-2', '1040'];
