@@ -1,192 +1,123 @@
-/**
- * Employment Verification Endpoint (UPDATED)
- * Uses real parsed employment data from IRS transcripts
- */
+import crypto from 'crypto';
+import { supabaseAdmin } from '../../../lib/supabase-admin';
 
-const TEST_EMPLOYMENT_DATA = {
-  '000-00-0001': {
-    request_id: 'emp_test_000_00_0001',
-    employment_status: 'active',
-    employment_history: [
-      {
-        employer: 'Acme Corporation Inc',
-        title: 'Senior Software Engineer',
-        start_date: '2023-01-15',
-        end_date: null,
-        w2_income_2024: 150000,
-        w2_income_2023: 145000,
-        has_401k: true,
-        ein: 'XXXXX4811'
+class APIKeyService {
+  static async verifyAPIKey(bearerToken) {
+    try {
+      const token = bearerToken.replace('Bearer ', '').trim();
+      const hashedKey = crypto.createHash('sha256').update(token).digest('hex');
+
+      const { data: apiKey, error } = await supabaseAdmin
+        .from('api_keys')
+        .select('customer_id, product, status, rate_limit, requests_today')
+        .eq('key_hash', hashedKey)
+        .eq('status', 'active')
+        .single();
+
+      if (error || !apiKey) {
+        return { valid: false, error: 'Invalid API key' };
       }
-    ],
-    summary: {
-      total_employers: 1,
-      total_w2_income: 150000,
-      multi_employer_detected: false
-    }
-  },
-  
-  '000-00-0002': {
-    request_id: 'emp_test_000_00_0002',
-    employment_status: 'active',
-    employment_history: [
-      {
-        employer: 'FIVE',
-        title: 'W-2 Employee',
-        start_date: '2022-01-01',
-        w2_income_2024: 953,
-        ein: 'XXXXX4811'
-      },
-      {
-        employer: 'POTB',
-        title: 'W-2 Employee',
-        start_date: '2022-01-01',
-        w2_income_2024: 43768,
-        ein: 'XXXXX3453'
-      },
-      {
-        employer: 'NIVA',
-        title: 'W-2 Employee',
-        start_date: '2022-01-01',
-        w2_income_2024: 5384,
-        ein: 'XXXXX9762'
+
+      if (apiKey.requests_today >= apiKey.rate_limit) {
+        return { valid: false, error: 'Rate limit exceeded' };
       }
-    ],
-    summary: {
-      total_employers: 3,
-      total_w2_income: 50105,
-      multi_employer_detected: true
-    }
-  },
-  
-  '000-00-0003': {
-    request_id: 'emp_test_000_00_0003',
-    employment_status: 'no_records',
-    employment_history: [],
-    summary: {
-      total_employers: 0,
-      total_w2_income: 0,
-      multi_employer_detected: false
-    }
-  },
-  
-  '000-00-0004': {
-    request_id: 'emp_test_000_00_0004',
-    employment_status: 'terminated',
-    employment_history: [
-      {
-        employer: 'Previous Company',
-        title: 'Manager',
-        start_date: '2020-01-01',
-        end_date: '2024-06-30',
-        termination_reason: 'Position Eliminated',
-        w2_income_2024: 45000,
-        w2_income_2023: 95000,
-        ein: 'XXXXX1234'
-      }
-    ],
-    summary: {
-      total_employers: 1,
-      total_w2_income: 45000,
-      last_employment_ended: '2024-06-30'
+
+      return {
+        valid: true,
+        customerId: apiKey.customer_id,
+        product: apiKey.product,
+      };
+    } catch (error) {
+      console.error('API key verification error:', error);
+      return { valid: false, error: 'Key verification failed' };
     }
   }
-};
+}
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'X-API-Key, Content-Type');
-    return res.status(200).end();
-  }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = req.headers['x-api-key'];
-  const validKeys = [
-  'mt_sandbox_emp_employercom_test123',      // Test/Sandbox
-  'mt_live_emp_employercom_prod'             // Production
-];
+  const startTime = Date.now();
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-if (!validKeys.includes(apiKey)) {
-    return res.status(401).json({
-      error: 'Invalid API key',
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  const { employee } = req.body;
-  
-  if (!employee || !employee.ssn) {
-    return res.status(400).json({
-      error: 'Missing required field: employee.ssn',
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  const ssnRegex = /^\d{3}-\d{2}-\d{4}$/;
-  if (!ssnRegex.test(employee.ssn)) {
-    return res.status(400).json({
-      error: 'Invalid SSN format. Expected: XXX-XX-XXXX',
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  const ssn = employee.ssn;
-  let responseData;
-  let status = 'completed';
-
-  if (ssn in TEST_EMPLOYMENT_DATA) {
-    responseData = TEST_EMPLOYMENT_DATA[ssn];
-  } 
-  else if (ssn.startsWith('000-00')) {
-    responseData = {
-      request_id: `emp_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      employment_status: 'no_records',
-      employment_history: [],
-      summary: {
-        total_employers: 0,
-        total_w2_income: 0,
-        multi_employer_detected: false
-      }
-    };
-  } else {
-    status = 'processing';
-    responseData = {
-      request_id: `emp_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      employment_status: 'processing',
-      employment_history: [],
-      note: 'Real IRS data retrieval in progress. Check status endpoint for updates.'
-    };
-  }
-
-  const response = {
-    request_id: responseData.request_id,
-    status: status,
-    test_mode: ssn.startsWith('000-00'),
-    employee_info: {
-      ssn_last_four: ssn.slice(-4),
-      name: employee.name || 'Not provided'
-    },
-    employment_verification: {
-      employment_status: responseData.employment_status,
-      employment_history: responseData.employment_history,
-      summary: responseData.summary
-    },
-    verification_details: {
-      verification_date: new Date().toISOString(),
-      data_source: ssn.startsWith('000-00') ? 'test_data' : 'irs_pps',
-      expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+      return res.status(401).json({
+        request_id: requestId,
+        error: 'Missing Authorization header',
+        help: 'Include: Authorization: Bearer YOUR_API_KEY',
+      });
     }
-  };
 
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('X-API-Version', '2.0');
-  res.setHeader('X-Request-ID', response.request_id);
+    const verification = await APIKeyService.verifyAPIKey(authHeader);
+    
+    if (!verification.valid) {
+      return res.status(401).json({
+        request_id: requestId,
+        error: verification.error,
+      });
+    }
 
-  return res.status(200).json(response);
+    const { customerId, product } = verification;
+
+    const { employee } = req.body;
+
+    if (!employee) {
+      return res.status(400).json({
+        request_id: requestId,
+        error: 'Missing "employee" field in request body',
+      });
+    }
+
+    const required = ['ssn', 'first_name', 'last_name', 'employer_name'];
+    const missing = required.filter((field) => !employee[field]);
+
+    if (missing.length > 0) {
+      return res.status(400).json({
+        request_id: requestId,
+        error: `Missing required fields: ${missing.join(', ')}`,
+      });
+    }
+
+    await supabaseAdmin.from('api_requests').insert({
+      customer_id: customerId,
+      endpoint: '/v1/employment/verify',
+      method: 'POST',
+      status_code: 200,
+      response_time_ms: Date.now() - startTime,
+    });
+
+    return res.status(200).json({
+      request_id: requestId,
+      status: 'success',
+      message: 'Request received and processed',
+      employee_info: {
+        name: `${employee.first_name} ${employee.last_name}`,
+        ssn_last_four: employee.ssn.slice(-4),
+      },
+      employer: employee.employer_name,
+    });
+
+  } catch (error) {
+    console.error(`[${requestId}] Error:`, error);
+
+    await supabaseAdmin.from('api_requests').insert({
+      customer_id: 'unknown',
+      endpoint: '/v1/employment/verify',
+      method: 'POST',
+      status_code: 500,
+      response_time_ms: Date.now() - startTime,
+      error_message: error.message,
+    }).catch(() => {});
+
+    return res.status(500).json({
+      request_id: requestId,
+      error: 'Internal server error',
+      message: error.message,
+    });
+  }
 }

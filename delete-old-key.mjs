@@ -1,0 +1,30 @@
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = 'https://nixzwnfjglojemozlvmf.supabase.co'
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peHp3bmZqZ2xvamVtb3psdm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NjMzMzMsImV4cCI6MjA3MzUzOTMzM30.qx8VUmL9EDlxtCNj4CF04Ld9xCFWDugNHhAmV0ixfuQ'
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey)
+
+async function deleteOldKey() {
+  try {
+    console.log('🗑️  Deleting old API key...')
+    
+    const { data, error } = await supabaseAdmin
+      .from('api_keys')
+      .delete()
+      .eq('customer_id', 'employer_com')
+    
+    if (error) {
+      console.error('❌ Error:', error.message)
+      process.exit(1)
+    }
+    
+    console.log('✅ Old key deleted!')
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message)
+    process.exit(1)
+  }
+}
+
+deleteOldKey()
