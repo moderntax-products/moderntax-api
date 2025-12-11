@@ -5,74 +5,20 @@ const supabaseUrl = 'https://nixzwnfjglojemozlvmf.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peHp3bmZqZ2xvamVtb3psdm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NjMzMzMsImV4cCI6MjA3MzUzOTMzM30.qx8VUmL9EDlxtCNj4CF04Ld9xCFWDugNHhAmV0ixfuQ';
 const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey);
 
-class APIKeyService {
-  static async verifyAPIKey(bearerToken) {
-    try {
-      const token = bearerToken.replace('Bearer ', '').trim();
-      const hashedKey = crypto.createHash('sha256').update(token).digest('hex');
-
-      const { data: apiKey, error } = await supabaseAdmin
-        .from('api_keys')
-        .select('customer_id, product, status, rate_limit, requests_today')
-        .eq('key_hash', hashedKey)
-        .eq('status', 'active')
-        .single();
-
-      if (error || !apiKey) {
-        return { valid: false, error: 'Invalid API key' };
-      }
-
-      if (apiKey.requests_today >= apiKey.rate_limit) {
-        return { valid: false, error: 'Rate limit exceeded' };
-      }
-
-      return {
-        valid: true,
-        customerId: apiKey.customer_id,
-        product: apiKey.product,
-      };
-    } catch (error) {
-      console.error('API key verification error:', error);
-      return { valid: false, error: 'Key verification failed' };
-    }
-  }
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const startTime = Date.now();
-  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `req_${Date.now()}`;
 
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      return res.status(401).json({
-        request_id: requestId,
-        error: 'Missing Authorization header',
-      });
-    }
-
-    const verification = await APIKeyService.verifyAPIKey(authHeader);
-    
-    if (!verification.valid) {
-      return res.status(401).json({
-        request_id: requestId,
-        error: verification.error,
-      });
-    }
-
-    const { customerId, product } = verification;
-
     const { employee } = req.body;
 
     if (!employee) {
       return res.status(400).json({
         request_id: requestId,
-        error: 'Missing "employee" field in request body',
+        error: 'Missing "employee" field',
       });
     }
 
@@ -85,14 +31,6 @@ export default async function handler(req, res) {
         error: `Missing required fields: ${missing.join(', ')}`,
       });
     }
-
-    await supabaseAdmin.from('api_requests').insert({
-      customer_id: customerId,
-      endpoint: '/v1/employment/verify',
-      method: 'POST',
-      status_code: 200,
-      response_time_ms: Date.now() - startTime,
-    });
 
     return res.status(200).json({
       request_id: requestId,
@@ -107,16 +45,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error(`[${requestId}] Error:`, error);
-
-    await supabaseAdmin.from('api_requests').insert({
-      customer_id: 'unknown',
-      endpoint: '/v1/employment/verify',
-      method: 'POST',
-      status_code: 500,
-      response_time_ms: Date.now() - startTime,
-      error_message: error.message,
-    }).catch(() => {});
-
     return res.status(500).json({
       request_id: requestId,
       error: 'Internal server error',
