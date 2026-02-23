@@ -3,20 +3,26 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "ws-server": "node server/ws-server.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.77.0",
+    "@deepgram/sdk": "^4.11.3",
     "@sparticuz/chromium": "^138.0.2",
     "@supabase/supabase-js": "^2.86.0",
     "csv-parse": "^6.1.0",
     "formidable": "^3.5.4",
+    "jsdom": "^28.1.0",
     "jspdf": "^3.0.3",
     "next": "^16.0.8",
     "nodemailer": "^7.0.10",
     "puppeteer-core": "^24.22.3",
     "react": "latest",
     "react-dom": "latest",
+    "twilio": "^5.12.2",
     "uuid": "^13.0.0",
+    "ws": "^8.19.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
